@@ -1,0 +1,11 @@
+# Brazy Tag — static site, no build step needed.
+# Netlify just serves the files in the repo root.
+[build]
+  publish = "."
+  command = ""
+
+# Send the bare domain root to the game
+[[redirects]]
+  from = "/game"
+  to = "/index.html"
+  status = 200
