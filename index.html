@@ -1687,9 +1687,8 @@ function endGame(message, meta, winner) {
 function playWinVideo(character, onDone) {
   const wrap = document.getElementById('win-video-wrap');
   const vid = document.getElementById('win-video');
-  const label = document.getElementById('win-char-name');
-  label.innerText = `${character.icon} ${character.name} WINS! ${character.icon}`;
-  label.style.color = character.color;
+  // No text overlay — the videos have the winner's name baked into the artwork
+  document.getElementById('win-char-name').innerText = '';
   wrap.style.display = 'flex';
   vid.src = character.video;
   vid.muted = SFX.muted;
