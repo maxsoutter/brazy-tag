@@ -374,18 +374,40 @@ display:none!important;
   text-shadow:0 1px 6px rgba(0,0,0,.5);
 }
 
-.power-row{ display:flex; gap:9px; }
-.power-chip{
-  flex:1; aspect-ratio:1; border-radius:13px; cursor:pointer;
-  border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.28);
-  font-size:1.35rem; display:flex; align-items:center; justify-content:center;
-  transition:transform .15s, background .2s, box-shadow .2s; will-change:transform;
+.fighter-portrait{
+  width:52px; height:52px; border-radius:14px; object-fit:cover;
+  border:2px solid var(--pc); box-shadow:0 0 14px var(--pc);
+  background:rgba(0,0,0,.3);
 }
-.power-chip:hover{ transform:translateY(-3px); background:rgba(255,255,255,.1); }
-.power-chip.active{
-  background:var(--pc); border-color:#fff;
-  box-shadow:0 0 20px var(--pc), inset 0 0 10px rgba(255,255,255,.35);
+.char-row{ display:flex; gap:9px; }
+.char-chip{
+  flex:1; border-radius:13px; cursor:pointer; padding:7px 3px 6px;
+  border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.28);
+  display:flex; flex-direction:column; align-items:center; gap:4px; color:#fff;
+  transition:transform .15s, background .2s, box-shadow .2s, opacity .2s; will-change:transform;
+}
+.char-chip img{ width:40px; height:40px; border-radius:9px; object-fit:cover; }
+.char-chip span{ font-size:.52rem; font-weight:800; letter-spacing:.5px; white-space:nowrap; }
+.char-chip:hover{ transform:translateY(-3px); background:rgba(255,255,255,.1); }
+.char-chip.active{
+  background:var(--cc); border-color:#fff;
+  box-shadow:0 0 20px var(--cc), inset 0 0 10px rgba(255,255,255,.35);
   transform:translateY(-2px) scale(1.06);
+}
+.char-chip.taken{ opacity:.32; }
+.char-chip.taken:hover{ opacity:.6; }
+
+/* WIN VIDEO OVERLAY */
+#win-video-wrap{
+  position:absolute; inset:0; z-index:200; background:#000;
+  display:none; align-items:center; justify-content:center;
+}
+#win-video-wrap video{ width:100%; height:100%; object-fit:contain; }
+#win-char-name{
+  position:absolute; bottom:7%; left:0; right:0; text-align:center;
+  font-size:2.6rem; font-weight:900; letter-spacing:4px;
+  text-shadow:0 0 24px rgba(0,0,0,.9), 0 4px 12px rgba(0,0,0,.8);
+  pointer-events:none;
 }
 
 .count-row{ display:flex; gap:16px; justify-content:center; margin-top:8px; flex-wrap:wrap; }
@@ -495,75 +517,39 @@ display:none!important;
       </div>
 
       <div class="menu-panel">
-        <p class="menu-tagline">⚡ Build your squad &nbsp;•&nbsp; Tap your power &nbsp;•&nbsp; Enter the Trials</p>
+        <p class="menu-tagline">⚡ Build your squad &nbsp;•&nbsp; Pick your character &nbsp;•&nbsp; Enter the Trials</p>
 
         <div class="roster">
-          <div class="fighter-card" data-player="1" style="--pc:#ff4d4d;">
+          <div class="fighter-card" data-player="1">
             <div class="fighter-top">
-              <span class="fighter-avatar">🥷</span>
-              <span class="fighter-name">P1 · RED</span>
+              <img class="fighter-portrait" alt="">
+              <span class="fighter-name">P1</span>
             </div>
-            <div class="power-row">
-              <button class="power-chip" data-power="burn"   title="Burn — slow &amp; damage">🔥</button>
-              <button class="power-chip" data-power="push"   title="Push — blast away">💨</button>
-              <button class="power-chip" data-power="freeze" title="Freeze — stop">❄️</button>
-              <button class="power-chip" data-power="wall"   title="Wall — trap">🪨</button>
-            </div>
-            <select id="p1-power" class="hidden-select">
-              <option value="burn">Burn</option><option value="push">Push</option>
-              <option value="freeze">Freeze</option><option value="wall">Wall</option>
-            </select>
+            <div class="char-row"></div>
           </div>
 
-          <div class="fighter-card" data-player="2" style="--pc:#ffcc00;">
+          <div class="fighter-card" data-player="2">
             <div class="fighter-top">
-              <span class="fighter-avatar">🥷</span>
-              <span class="fighter-name">P2 · YELLOW</span>
+              <img class="fighter-portrait" alt="">
+              <span class="fighter-name">P2</span>
             </div>
-            <div class="power-row">
-              <button class="power-chip" data-power="burn"   title="Burn — slow &amp; damage">🔥</button>
-              <button class="power-chip" data-power="push"   title="Push — blast away">💨</button>
-              <button class="power-chip" data-power="freeze" title="Freeze — stop">❄️</button>
-              <button class="power-chip" data-power="wall"   title="Wall — trap">🪨</button>
-            </div>
-            <select id="p2-power" class="hidden-select">
-              <option value="burn">Burn</option><option value="push">Push</option>
-              <option value="freeze">Freeze</option><option value="wall">Wall</option>
-            </select>
+            <div class="char-row"></div>
           </div>
 
-          <div class="fighter-card" data-player="3" style="--pc:#3399ff;">
+          <div class="fighter-card" data-player="3">
             <div class="fighter-top">
-              <span class="fighter-avatar">🥷</span>
-              <span class="fighter-name">P3 · BLUE</span>
+              <img class="fighter-portrait" alt="">
+              <span class="fighter-name">P3</span>
             </div>
-            <div class="power-row">
-              <button class="power-chip" data-power="burn"   title="Burn — slow &amp; damage">🔥</button>
-              <button class="power-chip" data-power="push"   title="Push — blast away">💨</button>
-              <button class="power-chip" data-power="freeze" title="Freeze — stop">❄️</button>
-              <button class="power-chip" data-power="wall"   title="Wall — trap">🪨</button>
-            </div>
-            <select id="p3-power" class="hidden-select">
-              <option value="burn">Burn</option><option value="push">Push</option>
-              <option value="freeze">Freeze</option><option value="wall">Wall</option>
-            </select>
+            <div class="char-row"></div>
           </div>
 
-          <div class="fighter-card" data-player="4" style="--pc:#2ecc71;">
+          <div class="fighter-card" data-player="4">
             <div class="fighter-top">
-              <span class="fighter-avatar">🥷</span>
-              <span class="fighter-name">P4 · GREEN</span>
+              <img class="fighter-portrait" alt="">
+              <span class="fighter-name">P4</span>
             </div>
-            <div class="power-row">
-              <button class="power-chip" data-power="burn"   title="Burn — slow &amp; damage">🔥</button>
-              <button class="power-chip" data-power="push"   title="Push — blast away">💨</button>
-              <button class="power-chip" data-power="freeze" title="Freeze — stop">❄️</button>
-              <button class="power-chip" data-power="wall"   title="Wall — trap">🪨</button>
-            </div>
-            <select id="p4-power" class="hidden-select">
-              <option value="burn">Burn</option><option value="push">Push</option>
-              <option value="freeze">Freeze</option><option value="wall">Wall</option>
-            </select>
+            <div class="char-row"></div>
           </div>
         </div>
 
@@ -582,6 +568,11 @@ display:none!important;
         <input id="art-input" type="file" accept="image/*" hidden>
       </label>
     </div>
+  </div>
+
+  <div id="win-video-wrap">
+    <video id="win-video" playsinline></video>
+    <div id="win-char-name"></div>
   </div>
 
   <div id="end-screen" class="screen-overlay">
@@ -858,6 +849,16 @@ const POWER_MAP = {
   'push':  { type: 'air',   icon: '💨' },
   'wall':  { type: 'earth', icon: '🪨' }
 };
+
+/* THE FOUR CHARACTERS — each has one fixed power, no two players may pick the same one */
+const CHARACTERS = {
+  hothead: { name: 'HOT HEAD', color: '#ff4d4d', bandana: '#44aaff', type: 'fire',  icon: '🔥', img: 'hothead.webp', video: 'hothead-win.mp4' },
+  gale:    { name: 'GALE',     color: '#ffcc00', bandana: '#ff44aa', type: 'air',   icon: '💨', img: 'gale.webp',    video: 'gale-win.mp4' },
+  blizz:   { name: 'BLIZZ',    color: '#3399ff', bandana: '#00ffcc', type: 'water', icon: '❄️', img: 'blizz.webp',   video: 'blizz-win.mp4' },
+  rocky:   { name: 'ROCKY',    color: '#2ecc71', bandana: '#f39c12', type: 'earth', icon: '🪨', img: 'rocky.webp',   video: 'rocky-win.mp4' }
+};
+// Which character each player slot currently has (always unique — picks swap)
+const charSel = { 1: 'hothead', 2: 'gale', 3: 'blizz', 4: 'rocky' };
 
 const keys = {};
 window.addEventListener('keydown', e => {
@@ -1492,16 +1493,14 @@ function initPlayers(count) {
     for(let i=1; i<=4; i++) {
         if (i > count) continue;
 
-        const config = playerConfigs[i];
-        const selectId = `p${i}-power`;
-        const selectedPower = document.getElementById(selectId).value;
-        const powerData = POWER_MAP[selectedPower];
+        const character = CHARACTERS[charSel[i]];
 
         // Spawn on the main floor
         let x = 100 + ((i-1) * 100);
         let y = canvas.height - 62; // Floor height - player height - buffer
 
-        const p = new Player(x, y, config.color, config.bandana, i, false, powerData.type);
+        const p = new Player(x, y, character.color, character.bandana, i, false, character.type);
+        p.charKey = charSel[i];
         allPlayers.push(p);
     }
 }
@@ -1666,6 +1665,19 @@ function startGame(count) {
   SFX.resume();
   SFX.uiClick();
   activePlayerCount = count;
+
+  // Stamp each player's chosen character onto the HUD tickers and control guides
+  const guideKeys = { 1: 'W/A/S/D', 2: '▲/◄/▼/►', 3: 'I/J/K/L', 4: 'T/F/G/H' };
+  const decoyKeys = { 1: 'E', 2: 'RShift', 3: 'O', 4: 'Y' };
+  for (let i = 1; i <= 4; i++) {
+    const c = CHARACTERS[charSel[i]];
+    const ticker = document.getElementById(`p${i}-ticker`);
+    ticker.style.color = c.color;
+    ticker.querySelector('.p-ticker-label').innerText = `${c.name} ${c.icon}`;
+    document.getElementById(`p${i}-guide`).innerHTML =
+      `${c.name} ${c.icon}: <b>${guideKeys[i]}</b> | Decoy(${decoyKeys[i]}): <b style="color:${c.color}">Can be used anytime!</b>`;
+  }
+
   document.getElementById('start-screen').style.display = 'none';
   document.getElementById('p3-ticker').style.display = activePlayerCount >= 3 ? 'flex' : 'none';
   document.getElementById('p3-guide').style.display = activePlayerCount >= 3 ? 'block' : 'none';
@@ -1677,12 +1689,51 @@ function startGame(count) {
   restartGame();
 }
 
-function endGame(message, meta) {
+function endGame(message, meta, winner) {
   gameState = 'END';
-  SFX.fanfare();
-  document.getElementById('end-title').innerText = message;
-  document.getElementById('end-meta').innerText = meta;
-  document.getElementById('end-screen').style.display = 'flex';
+  const showEndScreen = () => {
+    SFX.fanfare();
+    document.getElementById('end-title').innerText = message;
+    document.getElementById('end-meta').innerText = meta;
+    document.getElementById('end-screen').style.display = 'flex';
+  };
+  if (winner && winner.charKey && CHARACTERS[winner.charKey]) {
+    playWinVideo(CHARACTERS[winner.charKey], showEndScreen);
+  } else {
+    showEndScreen();
+  }
+}
+
+/* Plays the winning character's victory video full-screen, then continues to the end screen.
+   Falls back to the end screen immediately if the video can't load or play. */
+function playWinVideo(character, onDone) {
+  const wrap = document.getElementById('win-video-wrap');
+  const vid = document.getElementById('win-video');
+  const label = document.getElementById('win-char-name');
+  label.innerText = `${character.icon} ${character.name} WINS! ${character.icon}`;
+  label.style.color = character.color;
+  wrap.style.display = 'flex';
+  vid.src = character.video;
+  vid.muted = SFX.muted;
+
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+    wrap.style.display = 'none';
+    onDone();
+  };
+  vid.onended = finish;
+  vid.onerror = finish;
+  setTimeout(finish, 8000); // safety net so the game never gets stuck on the video
+  vid.play().catch(() => {
+    // Autoplay with sound blocked — retry muted, otherwise skip straight to the end screen
+    vid.muted = true;
+    vid.play().catch(finish);
+  });
 }
 
 function restartGame() {
@@ -1855,8 +1906,9 @@ function processFrame() {
         let sortedByScore = [...activePlayersList].sort((a, b) => a.totalTimeAsIt - b.totalTimeAsIt);
         let winner = sortedByScore[0];
         let fSec = p => (p.totalTimeAsIt / 60).toFixed(1);
-        let resultsMeta = activePlayersList.map(p => `P${p.id}: ${fSec(p)}s`).join(' | ');
-        endGame("TRIAL CONCLUDED", `Winner: Player ${winner.id} | Total Time Tagged - ${resultsMeta}`);
+        let charName = p => CHARACTERS[p.charKey] ? CHARACTERS[p.charKey].name : `P${p.id}`;
+        let resultsMeta = activePlayersList.map(p => `${charName(p)}: ${fSec(p)}s`).join(' | ');
+        endGame(`${charName(winner)} WINS!`, `Total Time Tagged — ${resultsMeta}`, winner);
       }
     }
   }
@@ -2132,9 +2184,6 @@ function createSparks(x, y, color, count = 10, speedFactor = 1) {
 /* =========================================================
    MODERN MENU — power selection + GSAP intro/transitions
    ========================================================= */
-// Default power per player — matches the hero artwork
-// (red=fire, yellow=wind, blue=ice, green=earth)
-const MENU_DEFAULTS = { 1: 'burn', 2: 'push', 3: 'freeze', 4: 'wall' };
 let selectedCount = 2;   // how many players the PLAY button will start
 
 function selectCount(n, silent) {
@@ -2144,22 +2193,34 @@ function selectCount(n, silent) {
   if (!silent) { SFX.init(); SFX.uiClick(); }
 }
 
-// Set the hidden <select> value + highlight the chosen chip (no sound/animation)
-function selectPowerSilent(card, power) {
-  const sel = document.getElementById('p' + card.dataset.player + '-power');
-  if (sel) sel.value = power;
-  card.querySelectorAll('.power-chip').forEach(chip =>
-    chip.classList.toggle('active', chip.dataset.power === power));
+// Pick a character for a player. Characters are unique: if another player
+// already has it, the two players SWAP characters so no one is ever left empty.
+function selectChar(playerId, charKey, silent) {
+  const currentOwner = Object.keys(charSel).find(k => charSel[k] === charKey && +k !== playerId);
+  if (currentOwner) charSel[currentOwner] = charSel[playerId];
+  charSel[playerId] = charKey;
+  updateRoster();
+  if (!silent) { SFX.init(); SFX.uiClick(); }
 }
 
-// Same, but with a click sound + a satisfying pop on the selected chip
-function selectPower(card, power) {
-  selectPowerSilent(card, power);
-  SFX.init(); SFX.uiClick();
-  if (window.gsap) {
-    const chip = card.querySelector(`.power-chip[data-power="${power}"]`);
-    gsap.fromTo(chip, { scale: 0.7 }, { scale: 1.06, duration: 0.4, ease: 'back.out(3)' });
-  }
+// Repaint every fighter card to match the current character selections
+function updateRoster() {
+  document.querySelectorAll('.fighter-card').forEach(card => {
+    const pid = +card.dataset.player;
+    const myKey = charSel[pid];
+    const c = CHARACTERS[myKey];
+    card.style.setProperty('--pc', c.color);
+    card.querySelector('.fighter-portrait').src = c.img;
+    const nameEl = card.querySelector('.fighter-name');
+    nameEl.textContent = `P${pid} · ${c.name} ${c.icon}`;
+    nameEl.style.color = c.color;
+    card.querySelectorAll('.char-chip').forEach(chip => {
+      const k = chip.dataset.char;
+      chip.classList.toggle('active', k === myKey);
+      chip.classList.toggle('taken', k !== myKey && Object.values(charSel).includes(k));
+      chip.style.setProperty('--cc', CHARACTERS[k].color);
+    });
+  });
 }
 
 // Paint a picked/saved image as both the crisp hero and the blurred backdrop
@@ -2171,15 +2232,29 @@ function applyCoverArt(dataUrl) {
 }
 
 function initMenu() {
+  // Build the 4 character choice buttons inside every fighter card
   document.querySelectorAll('.fighter-card').forEach(card => {
-    selectPowerSilent(card, MENU_DEFAULTS[card.dataset.player]);
-    card.querySelectorAll('.power-chip').forEach(chip =>
-      chip.addEventListener('click', () => selectPower(card, chip.dataset.power)));
+    const pid = +card.dataset.player;
+    const row = card.querySelector('.char-row');
+    Object.keys(CHARACTERS).forEach(key => {
+      const c = CHARACTERS[key];
+      const btn = document.createElement('button');
+      btn.className = 'char-chip';
+      btn.dataset.char = key;
+      btn.title = `${c.name} ${c.icon}`;
+      btn.innerHTML = `<img src="${c.img}" alt="${c.name}"><span>${c.name}</span>`;
+      btn.addEventListener('click', () => {
+        selectChar(pid, key);
+        if (window.gsap) gsap.fromTo(btn, { scale: 0.7 }, { scale: 1.06, duration: 0.4, ease: 'back.out(3)' });
+      });
+      row.appendChild(btn);
+    });
     if (window.gsap) {
       card.addEventListener('mouseenter', () => gsap.to(card, { y: -8, scale: 1.03, duration: 0.25, ease: 'power2.out' }));
       card.addEventListener('mouseleave', () => gsap.to(card, { y: 0,  scale: 1,    duration: 0.25, ease: 'power2.out' }));
     }
   });
+  updateRoster();
 
   // Restore artwork the user loaded on a previous visit
   try { const saved = localStorage.getItem('brazyCoverArt'); if (saved) applyCoverArt(saved); } catch (e) {}
