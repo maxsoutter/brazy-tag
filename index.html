@@ -674,7 +674,7 @@ const SFX = {
     this.muted = !this.muted;
     const el = document.getElementById('sound-toggle');
     if (el) el.innerText = this.muted ? '🔇' : '🔊';
-    if (!this.muted) this.uiClick();
+    if (this.muted) this.pauseMusic(); else { this.resumeMusic(); this.uiClick(); }
   },
 
   // --- Building blocks ---
@@ -797,42 +797,20 @@ const SFX = {
   },
   uiClick() { this.tone({freq: 720, type: 'square', dur: 0.05, vol: 0.13}); },
 
-  // --- Procedural background music ---
-  // A tiny generative sequencer: bass pulse + pentatonic plucks.
-  // The scale and tempo shift with what's happening in the arena.
-  scales: {
-    normal:   [220.00, 261.63, 293.66, 329.63, 392.00],           // warm pentatonic
-    endgame:  [220.00, 261.63, 293.66, 329.63, 392.00, 440.00],   // same, but faster tempo
-    flood:    [174.61, 207.65, 233.08, 261.63, 311.13],           // deep & murky
-    antigrav: [261.63, 293.66, 329.63, 369.99, 415.30, 466.16]    // dreamy whole-tone
-  },
-  tempos: { normal: 280, endgame: 175, flood: 400, antigrav: 340 },
+  // --- Background music: the Brazy Tag theme, looped quietly under the SFX ---
+  track: null,
   startMusic() {
-    if (this._musicRunning) return;
-    this._musicRunning = true;
-    const loop = () => {
-      if (this.ctx && !this.muted && this.musicOn && gameState === 'PLAYING') this.playMusicStep();
-      this._musicTimer = setTimeout(loop, this.tempos[this.mood] || 280);
-    };
-    loop();
+    if (this.track) { this.resumeMusic(); return; }
+    this.track = new Audio('brazy-tag-music.mp3');
+    this.track.loop = true;
+    this.track.volume = 0.22; // low, so the synthesized sound effects always cut through
+    this.track.play().catch(() => {});
   },
-  playMusicStep() {
-    const scale = this.scales[this.mood] || this.scales.normal;
-    const s = this.musicStep++;
-    if (s % 4 === 0) this.mtone(scale[(Math.floor(s / 4) % 2 === 0) ? 0 : 2] / 2, 'sine', 0.35, 0.5);
-    if (s % 2 === 0 && Math.random() < 0.65)
-      this.mtone(scale[Math.floor(Math.random() * scale.length)], 'triangle', 0.18, 0.2);
-    if (this.mood === 'endgame' && s % 2 === 1) this.mtone(1600, 'square', 0.03, 0.05);
+  resumeMusic() {
+    if (this.track && !this.muted && this.musicOn) this.track.play().catch(() => {});
   },
-  mtone(freq, type, dur, vol) {
-    const t0 = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    osc.type = type; osc.frequency.value = freq;
-    g.gain.setValueAtTime(vol, t0);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    osc.connect(g); g.connect(this.musicGain);
-    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  pauseMusic() {
+    if (this.track) this.track.pause();
   }
 };
 
@@ -1715,6 +1693,7 @@ function playWinVideo(character, onDone) {
   wrap.style.display = 'flex';
   vid.src = character.video;
   vid.muted = SFX.muted;
+  SFX.pauseMusic();
 
   let finished = false;
   const finish = () => {
@@ -1724,6 +1703,7 @@ function playWinVideo(character, onDone) {
     vid.removeAttribute('src');
     vid.load();
     wrap.style.display = 'none';
+    SFX.resumeMusic();
     onDone();
   };
   vid.onended = finish;
