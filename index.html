@@ -645,6 +645,16 @@ let particles = [];
 
 let activeGlitchMines = [];
 let activeWalls = [];
+let activeTornadoes = [];
+let activeCraters = [];
+let activeFlamePillars = [];
+let activeMeteors = [];
+let activeWaterWaves = [];
+
+/* POWER FRUIT — spawns 2-3 times per match; eating it upgrades that
+   character's decoy effect to the dramatic "super" version. */
+let activeFruit = null;
+let fruitSpawnTimes = [];
 
 /* =========================================================
    SOUND ENGINE — 100% code-generated with the Web Audio API.
@@ -1027,6 +1037,34 @@ class Player {
     this.currentStandingPlatform = null; this.lastPlatformLeft = null; this.hasJustLeftPlatform = false;
     this.burnTimer = 0; this.frozenTimer = 0; this.blownTimer = 0;
     this._wasJumpPressed = false;
+    this.initSuperFields();
+  }
+
+  // State used only by the fruit-powered "super" ability effects
+  initSuperFields() {
+    this.poweredUp = false;
+    this.tornadoTimer = 0;
+    this.tornadoTarget = null;
+    this.tornadoWobblePhase = Math.random() * Math.PI * 2;
+    this.tornadoWobbleSpeed = 0.08 + Math.random() * 0.06;
+    this.tornadoUpDownPhase = Math.random() * Math.PI * 2;
+    this.tornadoUpDownSpeed = 0.12 + Math.random() * 0.08;
+    this.tornadoBaseY = 0;
+    this.tornadoDriftX = 0;
+    this.tornadoDriftPhase = Math.random() * Math.PI * 2;
+    this.meteorCraterTimer = 0;
+    this.dizzyTimer = 0;
+    this.dizzyStunTimer = 0;
+    this.waterDragTimer = 0;
+    this.waterDragTargetX = 0;
+    this.waterDragTargetY = 0;
+    this.waterDragStartX = 0;
+    this.waterDragStartY = 0;
+    this.waterSlowTimer = 0;
+    this.flamePillarTimer = 0;
+    this.controlInvertTimer = 0;
+    this.controlInvertToggleTimer = 0;
+    this.controlInverted = false;
   }
 
   reset() {
@@ -1039,6 +1077,7 @@ class Player {
     this.burnTimer = 0; this.frozenTimer = 0; this.blownTimer = 0;
     this.currentStandingPlatform = null; this.lastPlatformLeft = null; this.hasJustLeftPlatform = false;
     this._wasJumpPressed = false;
+    this.initSuperFields();
   }
 
   isOnGroundOrPlatform() { return this.isGrounded && this.currentStandingPlatform !== null; }
@@ -1051,6 +1090,70 @@ class Player {
     if (this.wallRunCooldown > 0) this.wallRunCooldown--;
     if (this.doubleJumpCooldown > 0) this.doubleJumpCooldown--;
 
+    if (this.tornadoTimer > 0) {
+      this.tornadoTimer--;
+      let tornado = activeTornadoes.find(t => t.taggerId === this.id);
+      if (tornado) {
+        let runner = activePlayersList.find(p => p.id === tornado.runnerId);
+        if (runner) {
+          if (!this.tornadoTarget) {
+            let corners = [
+              {x: 0, y: platforms[0].y - this.height},
+              {x: canvas.width - this.width, y: platforms[0].y - this.height},
+              {x: 0, y: 0},
+              {x: canvas.width - this.width, y: 0}
+            ];
+            let furthest = corners[0]; let maxDist = 0;
+            for (let c of corners) {
+              let d = Math.hypot(c.x - runner.x, c.y - runner.y);
+              if (d > maxDist) { maxDist = d; furthest = c; }
+            }
+            this.tornadoTarget = { x: furthest.x, y: furthest.y };
+            this.tornadoBaseY = this.y;
+          }
+          // Chaotic real-tornado movement: wandering target, sinusoidal drift, and wobble
+          this.tornadoWobblePhase += this.tornadoWobbleSpeed;
+          this.tornadoUpDownPhase += this.tornadoUpDownSpeed;
+          this.tornadoDriftPhase += 0.05;
+          let wanderRadius = 180;
+          let targetX = this.tornadoTarget.x + Math.sin(this.tornadoDriftPhase * 0.7) * wanderRadius + Math.cos(this.tornadoDriftPhase * 1.3) * (wanderRadius * 0.6);
+          let targetY = this.tornadoTarget.y + Math.sin(this.tornadoDriftPhase * 0.9 + 1) * (wanderRadius * 0.5) + Math.cos(this.tornadoDriftPhase * 0.5) * 60;
+          let dx = targetX - this.x;
+          let dy = targetY - this.y;
+          let dist = Math.hypot(dx, dy);
+          let baseSpeed = 3.0;
+          let driftX = Math.sin(this.tornadoWobblePhase) * 2.8 + Math.cos(this.tornadoWobblePhase * 2.1) * 1.4;
+          let driftY = Math.cos(this.tornadoWobblePhase * 0.8) * 1.2 + Math.sin(this.tornadoWobblePhase * 1.6) * 0.8;
+          let upDownOsc = Math.sin(this.tornadoUpDownPhase) * 22 + Math.cos(this.tornadoUpDownPhase * 1.7) * 12;
+          let verticalLift = Math.sin(this.tornadoUpDownPhase * 0.5) * 8 - 3;
+          if (dist > 5) {
+            let moveX = (dx / dist) * baseSpeed + driftX;
+            let moveY = (dy / dist) * baseSpeed + driftY + verticalLift;
+            this.x += moveX * 0.18;
+            this.y += moveY * 0.18;
+          } else {
+            this.x += driftX * 0.35;
+            this.y += driftY * 0.35 + verticalLift * 0.2;
+          }
+          let orbitAngle = this.tornadoWobblePhase * 0.6;
+          let orbitRadius = 12 + Math.sin(this.tornadoUpDownPhase) * 8;
+          this.x += Math.cos(orbitAngle) * orbitRadius * 0.08;
+          this.y += Math.sin(orbitAngle * 1.3) * orbitRadius * 0.06 + upDownOsc * 0.04;
+          this.x = Math.max(0, Math.min(this.x, canvas.width - this.width));
+          this.y = Math.min(this.y, platforms[0].y - this.height);
+          this.vx = 0; this.vy = 0;
+        }
+        if (this.tornadoTimer <= 0) {
+          let idx = activeTornadoes.findIndex(t => t.taggerId === this.id);
+          if (idx >= 0) activeTornadoes.splice(idx, 1);
+          this.vx = 0; this.vy = 0;
+          this.tornadoTarget = null;
+        }
+      }
+      this.blownTimer = this.tornadoTimer;
+      return;
+    }
+
     if (this.burnTimer > 0) { this.burnTimer--; if (this.burnTimer === 0 && this.slowTimer > 0) this.slowTimer = 0; }
     if (this.frozenTimer > 0) { this.frozenTimer--; if (this.frozenTimer === 0) this.stuckTimer = 0; }
     if (this.blownTimer > 0) {
@@ -1062,6 +1165,43 @@ class Player {
         this.vy = 0;
       }
       return;
+    }
+    if (this.waterDragTimer > 0) {
+      this.waterDragTimer--;
+      // Wave carries the tagger - position is controlled by the wave update loop
+      this.vx = 0; this.vy = 0;
+      if (this.waterDragTimer <= 0) {
+        this.waterSlowTimer = 930;
+      }
+      for (let i = 0; i < 5; i++) {
+        particles.push({ x: this.x + Math.random() * this.width, y: this.y + Math.random() * this.height, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 3, radius: Math.random() * 4 + 2, color: 'rgba(0, 191, 255, 0.85)', alpha: 0.85, decay: 0.025 });
+      }
+      return;
+    }
+    if (this.meteorCraterTimer > 0) {
+      this.meteorCraterTimer--;
+      if (this.meteorCraterTimer <= 0 && this.dizzyTimer <= 0) {
+        this.dizzyTimer = 480;
+      }
+    }
+    if (this.dizzyTimer > 0) {
+      this.dizzyTimer--;
+      if (this.dizzyStunTimer > 0) {
+        this.dizzyStunTimer--;
+        this.vx = 0; this.vy = 0;
+        return;
+      }
+      if ((this.dizzyTimer + 1) % 60 === 0 && Math.random() < 0.20) {
+        this.dizzyStunTimer = 60;
+      }
+    }
+    if (this.controlInvertTimer > 0) {
+      this.controlInvertTimer--;
+      this.controlInvertToggleTimer--;
+      if (this.controlInvertToggleTimer <= 0) {
+        this.controlInverted = !this.controlInverted;
+        this.controlInvertToggleTimer = 15;
+      }
     }
     if (this.glitchDebuffTimer > 0) { this.glitchDebuffTimer--; if (this.glitchDebuffTimer === 0) this.glitchDebuffType = 'NONE'; }
     if (this.isWallRunning && (zeroGravityDuration > 0 || floodDuration > 0 || this.glitchDebuffType === 'ALL')) {
@@ -1084,15 +1224,27 @@ class Player {
       if (this.glitchDebuffType === 'ALL') speedMultiplier *= 0.825;
       else if (this.glitchDebuffType === 'SINGLE') speedMultiplier *= 0.75;
     }
+    if (this.waterSlowTimer > 0) { this.waterSlowTimer--; speedMultiplier *= 0.725; }
 
     let currentSpeed = this.baseSpeed * speedMultiplier;
     let currentMax = this.baseMaxSpeed * speedMultiplier;
     let currentFriction = FRICTION; // FIX #1: Now FRICTION is defined
-    let inputX = 0;
-    if (keys[playerConfigs[this.id].keys.left]) { inputX = -1; this.facing = -1; }
-    else if (keys[playerConfigs[this.id].keys.right]) { inputX = 1; this.facing = 1; }
-
-    let jumpPressed = keys[playerConfigs[this.id].keys.up];
+    let rawInputX = 0;
+    if (keys[playerConfigs[this.id].keys.left]) rawInputX = -1;
+    else if (keys[playerConfigs[this.id].keys.right]) rawInputX = 1;
+    let rawJumpPressed = keys[playerConfigs[this.id].keys.up];
+    let rawDownPressed = keys[playerConfigs[this.id].keys.down];
+    let inputX = rawInputX;
+    let jumpPressed = rawJumpPressed;
+    let downPressed = rawDownPressed;
+    // Super-fire effect: controls flicker between normal and inverted
+    if (this.controlInvertTimer > 0 && this.controlInverted) {
+      inputX = -rawInputX;
+      jumpPressed = rawDownPressed;
+      downPressed = rawJumpPressed;
+    }
+    if (inputX === -1) this.facing = -1;
+    else if (inputX === 1) this.facing = 1;
     if (jumpPressed && !this._wasJumpPressed && this.glitchDebuffType !== 'ALL') {
       const inverted = currentGravity < 0 && currentGravity !== ZERO_GRAVITY_VAL;
       const jumpDirection = inverted ? 1 : -1;
@@ -1125,8 +1277,8 @@ class Player {
 
     if (this.isWallRunning) {
       this.vx = 0; this.vy = 0;
-      if (keys[playerConfigs[this.id].keys.up]) this.vy = -4.5;
-      else if (keys[playerConfigs[this.id].keys.down]) this.vy = 4.5;
+      if (jumpPressed) this.vy = -4.5;
+      else if (downPressed) this.vy = 4.5;
       if (!this.isTouchingAnyTree()) { this.isWallRunning = false; this.wallRunCooldown = 720; }
     } else {
       if (floodDuration > 0) {
@@ -1135,9 +1287,9 @@ class Player {
           this.vx += inputX * (currentSpeed * 0.7);
           if (Math.abs(this.vx) > currentMax * 0.7) this.vx = this.facing * currentMax * 0.7;
         } else { this.vx *= currentFriction; }
-        if (keys[playerConfigs[this.id].keys.up] && this.glitchDebuffType !== 'ALL') {
+        if (jumpPressed && this.glitchDebuffType !== 'ALL') {
           this.vy -= 0.6; if (this.vy < -4.5) this.vy = -4.5;
-        } else if (keys[playerConfigs[this.id].keys.down]) {
+        } else if (downPressed) {
           this.vy += 0.6; if (this.vy > 4.5) this.vy = 4.5;
         } else { this.vy *= 0.92; }
         this.isGrounded = false;
@@ -1299,6 +1451,21 @@ class Player {
       SFX.boing();
       petalLauncher.compressY = 9; petalLauncher.relocateTimer = 180;
     }
+
+    // Eat the power fruit — first to touch it gets super powers
+    if (activeFruit && !this.poweredUp &&
+        this.x < activeFruit.x + 16 && this.x + this.width > activeFruit.x - 16 &&
+        this.y < activeFruit.y + 16 && this.y + this.height > activeFruit.y - 16) {
+      activeFruit = null;
+      this.poweredUp = true;
+      SFX.fanfare();
+      createSparks(this.x + this.width / 2, this.y + this.height / 2, '#ffd700', 45, 2.2);
+      createSparks(this.x + this.width / 2, this.y + this.height / 2, '#ff66ff', 25, 1.5);
+      shakeIntensity = 10;
+      const cName = CHARACTERS[this.charKey] ? CHARACTERS[this.charKey].name : `P${this.id}`;
+      document.getElementById('event-banner').innerText = `⚡ ${cName} ATE THE POWER FRUIT! ⚡`;
+      document.getElementById('event-banner').style.color = '#ffd700';
+    }
   }
 
   rectBounds() { return { x: this.x, y: this.y, width: this.width, height: this.height }; }
@@ -1342,10 +1509,21 @@ class Player {
       ctx.fillText('❄️', this.x + this.width / 2 - 6, this.y - 12);
       ctx.restore();
     }
-    if (this.blownTimer > 0) {
+    if (this.poweredUp) {
+      ctx.save();
+      ctx.shadowBlur = 18; ctx.shadowColor = '#ffd700';
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.75)'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(this.x + this.width / 2, this.y + this.height / 2,
+              this.width * 0.78 + Math.sin(Date.now() / 150) * 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (this.blownTimer > 0 || this.tornadoTimer > 0) {
       ctx.save();
       ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
-      ctx.rotate((this.blownTimer / 60) * Math.PI * 4);
+      let spin = this.tornadoTimer > 0 ? (this.tornadoTimer / 300) * Math.PI * 12 : (this.blownTimer / 60) * Math.PI * 4;
+      ctx.rotate(spin);
       ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
     }
     if (this.stuckTimer > 0) {
@@ -1385,7 +1563,7 @@ class Player {
     ctx.arc(eyeBaseX + pupilLookOffset, eyeY, 1.5, 0, Math.PI * 2);
     ctx.arc(eyeBaseX + eyeSpacing + pupilLookOffset, eyeY, 1.5, 0, Math.PI * 2);
     ctx.fill();
-    if (this.blownTimer > 0) ctx.restore();
+    if (this.blownTimer > 0 || this.tornadoTimer > 0) ctx.restore();
     ctx.restore();
     if (this.isIt) {
       ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
@@ -1536,6 +1714,7 @@ function triggerDynamicAbility(player) {
       x: player.x, y: player.y, width: player.width, height: player.height,
       bodyColor: player.bodyColor, bandanaColor: player.bandanaColor, facing: player.facing,
       duration: 180, elementType: player.elementType, creatorId: player.id,
+      powered: player.poweredUp,
       isFading: false, hasBeenTouched: false
     };
     let sparkColor = '#ffffff';
@@ -1551,15 +1730,25 @@ function triggerDynamicAbility(player) {
 
 function processContactTagging() {
   let tagger = activePlayersList.find(p => p.isIt);
-  if (!tagger || tagger.stuckTimer > 0 || tagger.invisibleTimer > 0 || tagger.blownTimer > 0 || tagger.frozenTimer > 0) return;
+  if (!tagger || tagger.stuckTimer > 0 || tagger.invisibleTimer > 0 || tagger.blownTimer > 0 || tagger.frozenTimer > 0 || tagger.tornadoTimer > 0) return;
 
   if (activeDecoy && !activeDecoy.hasBeenTouched) {
     if (tagger.x < activeDecoy.x + activeDecoy.width && tagger.x + tagger.width > activeDecoy.x &&
         tagger.y < activeDecoy.y + activeDecoy.height && tagger.y + tagger.height > activeDecoy.y) {
       activeDecoy.hasBeenTouched = true;
       if (activeDecoy.elementType === 'fire') {
-        tagger.burnTimer = 210;
-        tagger.slowTimer = 210;
+        if (activeDecoy.powered) {
+          // SUPER FIRE: long burn, flickering inverted controls, flame pillar on the platform
+          tagger.burnTimer = 480;
+          tagger.controlInvertTimer = 480;
+          tagger.controlInvertToggleTimer = 15;
+          tagger.controlInverted = true;
+          let decoyPlat = findPlatformBelow(activeDecoy.x + activeDecoy.width / 2, activeDecoy.y + activeDecoy.height) || platforms[0];
+          activeFlamePillars.push({ platform: decoyPlat, timer: 480, x: decoyPlat.x, y: decoyPlat.y, width: decoyPlat.width });
+        } else {
+          tagger.burnTimer = 210;
+          tagger.slowTimer = 210;
+        }
         SFX.burn();
         for (let i = 0; i < 5; i++) {
           createSparks(
@@ -1572,6 +1761,17 @@ function processContactTagging() {
         shakeIntensity = 8;
       } else if (activeDecoy.elementType === 'air') {
         let runner = activePlayersList.find(p => p.id === activeDecoy.creatorId);
+        if (activeDecoy.powered) {
+          // SUPER WIND: the tagger is swept up in a wandering tornado
+          tagger.tornadoTimer = 495; tagger.blownTimer = 495;
+          activeTornadoes.push({ taggerId: tagger.id, runnerId: activeDecoy.creatorId, timer: 495 });
+          SFX.gust();
+          for (let i = 0; i < 50; i++) {
+            particles.push({ x: tagger.x + tagger.width / 2, y: tagger.y + tagger.height / 2, vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20, radius: Math.random() * 6 + 4, color: ['#E0F7FA', '#B2EBF2', '#81D4FA'][Math.floor(Math.random() * 3)], alpha: 0.95, decay: 0.01 });
+          }
+          shakeIntensity = 15;
+          activeDecoy = null; tagCooldown = 45; return;
+        }
         tagger.blownTimer = 120;
         let blowAngle = runner
           ? Math.atan2(runner.y - tagger.y, runner.x - tagger.x)
@@ -1596,6 +1796,32 @@ function processContactTagging() {
         }
         shakeIntensity = 15;
       } else if (activeDecoy.elementType === 'water') {
+        if (activeDecoy.powered) {
+          // SUPER WATER: a tidal wave sweeps the tagger across the platform, then soaks them
+          let plat = tagger.currentStandingPlatform || platforms[0];
+          tagger.waterDragTimer = 300;
+          tagger.waterDragTargetX = plat.x + plat.width - tagger.width;
+          tagger.waterDragTargetY = plat.y - tagger.height;
+          SFX.freeze();
+          activeWaterWaves.push({
+            timer: 300,
+            x: tagger.x + tagger.width / 2,
+            y: plat.y,
+            speed: 5.5,
+            width: plat.width + 140,
+            height: 90,
+            platform: plat,
+            taggerId: tagger.id,
+            taggerOffsetX: 0,
+            taggerOffsetY: -tagger.height / 2
+          });
+          createSparks(tagger.x + tagger.width / 2, tagger.y + tagger.height / 2, '#00BFFF', 50, 2);
+          for (let i = 0; i < 40; i++) {
+            particles.push({ x: tagger.x + Math.random() * tagger.width, y: tagger.y + Math.random() * tagger.height, vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 4 - 1, radius: Math.random() * 3 + 2, color: 'rgba(0, 191, 255, 0.9)', alpha: 0.9, decay: 0.015 });
+          }
+          shakeIntensity = 8;
+          activeDecoy = null; tagCooldown = 45; return;
+        }
         tagger.frozenTimer = 168;
         SFX.freeze();
         createSparks(tagger.x + tagger.width / 2, tagger.y + tagger.height / 2, '#00BFFF', 35, 1.3);
@@ -1613,9 +1839,32 @@ function processContactTagging() {
         }
         shakeIntensity = 6;
       } else if (activeDecoy.elementType === 'earth') {
-        let runner = activePlayersList.find(p => p.id === activeDecoy.creatorId);
-        if (runner) createEarthWall(runner, tagger);
-        createSparks(activeDecoy.x + activeDecoy.width / 2, activeDecoy.y + activeDecoy.height / 2, '#8B7355', 20);
+        if (activeDecoy.powered) {
+          // SUPER EARTH: a meteor homes in on the tagger, leaving a crater and dizziness
+          let plat = tagger.currentStandingPlatform || platforms[0];
+          let targetX = tagger.x + tagger.width / 2;
+          let targetY = tagger.y + tagger.height / 2;
+          activeMeteors.push({
+            startX: targetX + (Math.random() - 0.5) * 100,
+            startY: -100,
+            targetX: targetX,
+            targetY: targetY,
+            x: targetX + (Math.random() - 0.5) * 100,
+            y: -100,
+            progress: 0,
+            speed: 0.003,
+            trail: [],
+            targetTaggerId: tagger.id,
+            targetPlatform: plat,
+            craterX: tagger.x + tagger.width / 2 - 50
+          });
+          document.getElementById('event-banner').innerText = "☄️ METEOR INCOMING ☄️";
+          document.getElementById('event-banner').style.color = '#ff6600';
+        } else {
+          let runner = activePlayersList.find(p => p.id === activeDecoy.creatorId);
+          if (runner) createEarthWall(runner, tagger);
+          createSparks(activeDecoy.x + activeDecoy.width / 2, activeDecoy.y + activeDecoy.height / 2, '#8B7355', 20);
+        }
       }
       activeDecoy = null; tagCooldown = 45; return;
     }
@@ -1726,6 +1975,15 @@ function restartGame() {
   activeDecoy = null; mudShowerTimer = 0; mudShowerDuration = 0;
   if (muddyPlatform) muddyPlatform.isMuddy = false;
   muddyPlatform = null; shakeIntensity = 0; activeWalls = [];
+  activeTornadoes = []; activeCraters = []; activeFlamePillars = []; activeMeteors = []; activeWaterWaves = [];
+
+  // Schedule 2 or 3 power-fruit appearances at random times through the match
+  activeFruit = null;
+  fruitSpawnTimes = [
+    190 - Math.floor(Math.random() * 30),   // early game
+    130 - Math.floor(Math.random() * 40)    // mid game
+  ];
+  if (Math.random() < 0.5) fruitSpawnTimes.push(70 - Math.floor(Math.random() * 35)); // sometimes a late one
   floodDuration = 0; hasFloodedThisMatch = false; floodVisualLevel = 0;
   zeroGravityUsed = false; zeroGravityDuration = 0; currentGravity = NORMAL_GRAVITY;
   zeroGravityTriggerTime = Math.max(20, Math.floor(roundTimeRemaining * 0.5));
@@ -1864,6 +2122,17 @@ function processFrame() {
       // Countdown ticks for the final 10 seconds
       if (roundTimeRemaining <= 10 && roundTimeRemaining > 0) SFX.tick(roundTimeRemaining);
 
+      // Power fruit appears at its scheduled times (stays for 15 seconds)
+      if (!activeFruit && fruitSpawnTimes.includes(roundTimeRemaining)) {
+        const validPlats = platforms.filter(p => p.type === 'normal');
+        const plat = validPlats[Math.floor(Math.random() * validPlats.length)];
+        activeFruit = { platform: plat, timer: 900, x: plat.x + plat.width / 2, y: plat.y - 22 };
+        SFX.portal();
+        createSparks(activeFruit.x, activeFruit.y, '#ffd700', 30, 1.5);
+        document.getElementById('event-banner').innerText = "🍑 POWER FRUIT HAS APPEARED! 🍑";
+        document.getElementById('event-banner').style.color = '#ffd700';
+      }
+
       if (!hasFloodedThisMatch && zeroGravityDuration <= 0) {
         if (roundTimeRemaining > 40) {
           if (roundTimeRemaining % 10 === 0 && Math.random() < 0.10) { floodDuration = 750; hasFloodedThisMatch = true; SFX.floodStinger(); }
@@ -1919,6 +2188,88 @@ function processFrame() {
     floodVisualLevel = Math.min(1, floodVisualLevel + 0.025);
   } else {
     floodVisualLevel = Math.max(0, floodVisualLevel - 0.015);
+  }
+
+  // Power fruit lifetime — vanishes after 15 seconds if nobody eats it
+  if (gameState === 'PLAYING' && activeFruit) {
+    activeFruit.timer--;
+    activeFruit.x = activeFruit.platform.x + activeFruit.platform.width / 2;
+    activeFruit.y = activeFruit.platform.y - 22;
+    if (activeFruit.timer <= 0) {
+      createSparks(activeFruit.x, activeFruit.y, '#aa88ff', 20, 1.2);
+      activeFruit = null;
+      document.getElementById('event-banner').innerText = "TIMELINE STABLE";
+      document.getElementById('event-banner').style.color = '#ff9966';
+    }
+  }
+
+  // Super-water waves carry the tagger across the platform
+  for (let i = activeWaterWaves.length - 1; i >= 0; i--) {
+    let w = activeWaterWaves[i];
+    let plat = w.platform;
+    w.x += w.speed;
+    w.timer--;
+    let tagger = activePlayersList.find(p => p.id === w.taggerId);
+    if (tagger) {
+      let rideOffset = -w.width * 0.12;
+      tagger.x = w.x + rideOffset - tagger.width / 2;
+      let waveBob = Math.sin(Date.now() / 160) * 14;
+      tagger.y = w.y + w.taggerOffsetY + waveBob;
+      if (tagger.x > plat.x + plat.width - tagger.width) tagger.x = plat.x + plat.width - tagger.width;
+      if (tagger.x < plat.x) tagger.x = plat.x;
+      tagger.vx = 0; tagger.vy = 0;
+    }
+    if (w.timer <= 0 || w.x > plat.x + plat.width + w.width / 2) {
+      activeWaterWaves.splice(i, 1);
+    }
+  }
+
+  // Super-earth meteors home in on the tagger
+  for (let i = activeMeteors.length - 1; i >= 0; i--) {
+    let m = activeMeteors[i];
+    let tagger = activePlayersList.find(p => p.id === m.targetTaggerId);
+    if (tagger) {
+      m.targetX = tagger.x + tagger.width / 2;
+      m.targetY = tagger.y + tagger.height / 2;
+    }
+    m.progress += m.speed;
+    let easeIn = t => t * t * t;
+    m.x = m.startX + (m.targetX - m.startX) * m.progress;
+    m.y = m.startY + (m.targetY - m.startY) * easeIn(m.progress);
+    let mdx = m.x - (m.trail[m.trail.length - 1]?.x ?? m.x);
+    let mdy = m.y - (m.trail[m.trail.length - 1]?.y ?? m.y);
+    let mAngle = Math.atan2(mdy, mdx) || Math.PI / 2;
+    m.trail.push({ x: m.x, y: m.y, alpha: 1.0, size: 22 + Math.random() * 18, angle: mAngle });
+    if (m.trail.length > 80) m.trail.shift();
+    for (let t = 0; t < m.trail.length; t++) { m.trail[t].alpha -= 0.012; }
+    m.trail = m.trail.filter(t => t.alpha > 0);
+    if (m.progress > 0.3) { shakeIntensity = Math.max(shakeIntensity, (m.progress - 0.3) * 15); }
+    if (m.progress >= 1) {
+      if (tagger) {
+        activeCraters.push({ x: m.craterX, y: m.targetPlatform.y, width: 150, height: 25, timer: 200, platform: m.targetPlatform });
+        tagger.meteorCraterTimer = 200;
+        tagger.stuckTimer = 200;
+        SFX.earth();
+        createSparks(tagger.x + tagger.width / 2, tagger.y + tagger.height / 2, '#8B7355', 50, 3.5);
+        createSparks(tagger.x + tagger.width / 2, tagger.y + tagger.height / 2, '#ff4500', 60, 4);
+        createSparks(tagger.x + tagger.width / 2, tagger.y + tagger.height / 2, '#ffcc00', 40, 3);
+        createSparks(tagger.x + tagger.width / 2, tagger.y + tagger.height / 2, '#ffffff', 30, 2.5);
+        for (let s = 0; s < 10; s++) {
+          particles.push({
+            x: tagger.x + tagger.width / 2 + (Math.random() - 0.5) * 70,
+            y: tagger.y + tagger.height / 2 - Math.random() * 15,
+            vx: (Math.random() - 0.5) * 1.8,
+            vy: -Math.random() * 2.2 - 0.3,
+            radius: 5 + Math.random() * 12,
+            color: `rgba(${70 + Math.random() * 50}, ${70 + Math.random() * 50}, ${70 + Math.random() * 50}, ${0.3 + Math.random() * 0.4})`,
+            alpha: 0.5 + Math.random() * 0.5,
+            decay: 0.007
+          });
+        }
+        shakeIntensity = 18;
+      }
+      activeMeteors.splice(i, 1);
+    }
   }
   // Background
   let bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -2027,7 +2378,300 @@ function processFrame() {
     ctx.restore();
   });
 
+  // Draw meteors (super earth)
+  activeMeteors.forEach(m => {
+    ctx.save();
+    let trail = m.trail;
+    if (trail.length < 2) { ctx.restore(); return; }
+    let head = trail[trail.length - 1];
+    let angle = head.angle || Math.PI / 2;
+    ctx.shadowBlur = 60;
+    ctx.shadowColor = 'rgba(255, 80, 0, 0.3)';
+    let shockGrad = ctx.createRadialGradient(head.x, head.y, 12, head.x, head.y, 90);
+    shockGrad.addColorStop(0, 'rgba(255, 200, 60, 0.0)');
+    shockGrad.addColorStop(0.15, 'rgba(255, 140, 20, 0.12)');
+    shockGrad.addColorStop(0.4, 'rgba(255, 70, 0, 0.2)');
+    shockGrad.addColorStop(0.7, 'rgba(180, 40, 0, 0.1)');
+    shockGrad.addColorStop(1, 'rgba(80, 15, 0, 0.0)');
+    ctx.fillStyle = shockGrad;
+    ctx.beginPath(); ctx.arc(head.x, head.y, 90, 0, Math.PI * 2); ctx.fill();
+    for (let t = 0; t < trail.length - 1; t++) {
+      let tr = trail[t];
+      let progress = t / trail.length;
+      let tailWidth = (1 - progress) * 45 * tr.alpha;
+      let tailLen = 20 * tr.alpha;
+      let heat = 1 - progress * 0.45;
+      let g = Math.floor(255 * heat * 0.95);
+      let b = Math.floor(255 * heat * 0.35);
+      let a = tr.alpha * (1 - progress * 0.25) * 0.8;
+      ctx.fillStyle = `rgba(255, ${g}, ${b}, ${a})`;
+      ctx.beginPath(); ctx.ellipse(tr.x, tr.y, tailWidth, tailLen, tr.angle, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 50; ctx.shadowColor = '#ff3300';
+    let haloGrad = ctx.createRadialGradient(head.x, head.y, 8, head.x, head.y, 66);
+    haloGrad.addColorStop(0, 'rgba(255, 160, 0, 0.65)');
+    haloGrad.addColorStop(0.25, 'rgba(255, 90, 0, 0.45)');
+    haloGrad.addColorStop(0.55, 'rgba(255, 40, 0, 0.25)');
+    haloGrad.addColorStop(1, 'rgba(200, 20, 0, 0.0)');
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath(); ctx.arc(head.x, head.y, 66, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 35; ctx.shadowColor = '#ff2200'; ctx.fillStyle = '#cc2200';
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 2; a += 0.25) {
+      let r = 30 + Math.random() * 8;
+      let px = head.x + Math.cos(a) * r; let py = head.y + Math.sin(a) * r;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 25; ctx.shadowColor = '#ff6600'; ctx.fillStyle = '#ff5500';
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 2; a += 0.2) {
+      let r = 22 + Math.random() * 5;
+      let px = head.x + Math.cos(a) * r; let py = head.y + Math.sin(a) * r;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 20; ctx.shadowColor = '#ffaa00'; ctx.fillStyle = '#ffcc00';
+    ctx.beginPath(); ctx.arc(head.x, head.y, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 15; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(head.x, head.y, 7, 0, Math.PI * 2); ctx.fill();
+    for (let s = 0; s < 14; s++) {
+      let dist = 24 + Math.random() * 36;
+      let ang = angle + Math.PI + (Math.random() - 0.5) * 1.2;
+      let sx = head.x + Math.cos(ang) * dist; let sy = head.y + Math.sin(ang) * dist;
+      ctx.fillStyle = `rgba(255, ${100 + Math.floor(Math.random() * 155)}, ${Math.floor(Math.random() * 80)}, ${0.4 + Math.random() * 0.6})`;
+      ctx.beginPath(); ctx.arc(sx, sy, 2 + Math.random() * 5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255, 240, 200, 0.35)'; ctx.lineWidth = 2;
+    for (let s = 0; s < 5; s++) {
+      let dist = 30 + Math.random() * 55;
+      let ang = angle + Math.PI + (Math.random() - 0.5) * 0.4;
+      let sx = head.x + Math.cos(ang) * dist; let sy = head.y + Math.sin(ang) * dist;
+      ctx.beginPath(); ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.cos(ang) * (18 + Math.random() * 25), sy + Math.sin(ang) * (18 + Math.random() * 25));
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+
   platforms.forEach(plat => plat.draw());
+
+  // Draw super-water waves (platform-bound surge)
+  for (let i = activeWaterWaves.length - 1; i >= 0; i--) {
+    let w = activeWaterWaves[i];
+    let plat = w.platform;
+    let waveTime = Date.now() / 300;
+    let wAlpha = w.timer > 60 ? 1 : w.timer / 60;
+    let cx = w.x; let cy = w.y;
+    let waveW = w.width; let waveH = w.height;
+    let waveL = cx - waveW / 2; let waveR = cx + waveW / 2;
+    ctx.save();
+    ctx.globalAlpha = wAlpha * 0.9;
+    ctx.beginPath();
+    ctx.rect(plat.x - 20, plat.y - waveH - 30, plat.width + 40, waveH + 60);
+    ctx.clip();
+    for (let s = 0; s < 20; s++) {
+      let streakX = waveL + Math.random() * waveW;
+      let streakY = cy - 10 - Math.random() * waveH * 0.8;
+      ctx.strokeStyle = `rgba(220, 245, 255, ${0.1 + Math.random() * 0.25})`;
+      ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.beginPath(); ctx.moveTo(streakX, streakY);
+      ctx.lineTo(streakX + 20 + Math.random() * 50, streakY + Math.random() * 6 - 3); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(5, 30, 65, 0.92)';
+    ctx.beginPath(); ctx.moveTo(waveL - 60, cy + 20);
+    for (let wx = waveL - 60; wx <= waveR + 60; wx += 4) {
+      let dist = (wx - cx) / (waveW / 2);
+      let envelope = Math.max(0, 1 - Math.pow(Math.abs(dist), 1.3));
+      let crest = envelope * (Math.sin(dist * Math.PI * 2.5 - waveTime * 3.0) * 0.42 + 0.48);
+      ctx.lineTo(wx, cy - crest * waveH + Math.sin(wx * 0.025 + waveTime * 3.5) * 10 + Math.cos(wx * 0.042 + waveTime * 2.0) * 5);
+    }
+    ctx.lineTo(waveR + 60, cy + 20); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(14, 85, 140, 0.82)';
+    ctx.beginPath(); ctx.moveTo(waveL - 40, cy + 14);
+    for (let wx = waveL - 40; wx <= waveR + 40; wx += 4) {
+      let dist = (wx - cx) / (waveW / 2);
+      let envelope = Math.max(0, 1 - Math.pow(Math.abs(dist), 1.2));
+      let crest = envelope * (Math.sin(dist * Math.PI * 3.0 - waveTime * 3.4 + 0.5) * 0.36 + 0.46);
+      ctx.lineTo(wx, cy - crest * waveH * 0.85 + Math.sin(wx * 0.032 + waveTime * 4.0) * 8 + Math.cos(wx * 0.048 + waveTime * 2.4) * 4);
+    }
+    ctx.lineTo(waveR + 40, cy + 14); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(30, 165, 215, 0.72)';
+    ctx.beginPath(); ctx.moveTo(waveL - 30, cy + 8);
+    for (let wx = waveL - 30; wx <= waveR + 30; wx += 4) {
+      let dist = (wx - cx) / (waveW / 2);
+      let envelope = Math.max(0, 1 - Math.pow(Math.abs(dist), 1.15));
+      let crest = envelope * (Math.sin(dist * Math.PI * 3.8 - waveTime * 3.8 + 1.1) * 0.30 + 0.42);
+      ctx.lineTo(wx, cy - crest * waveH * 0.70 + Math.sin(wx * 0.038 + waveTime * 4.5) * 6 + Math.cos(wx * 0.055 + waveTime * 2.8) * 3);
+    }
+    ctx.lineTo(waveR + 30, cy + 8); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = wAlpha * 0.95;
+    for (let wx = waveL; wx <= waveR; wx += 6) {
+      let dist = (wx - cx) / (waveW / 2);
+      let envelope = Math.max(0, 1 - Math.pow(Math.abs(dist), 1.15));
+      let crest = envelope * (Math.sin(dist * Math.PI * 3.8 - waveTime * 3.8 + 1.1) * 0.30 + 0.42);
+      let wy = cy - crest * waveH * 0.70;
+      let foam = Math.sin(dist * Math.PI * 3.8 - waveTime * 3.8 + 1.1);
+      if (foam > 0.3 && envelope > 0.2) {
+        ctx.fillStyle = `rgba(240, 252, 255, ${0.15 + foam * 0.45})`;
+        ctx.beginPath(); ctx.arc(wx, wy - 4, 1.5 + foam * 3.5, 0, Math.PI * 2); ctx.fill();
+      }
+      if (Math.random() < 0.15 && envelope > 0.3) {
+        ctx.fillStyle = `rgba(200, 245, 255, ${0.2 + Math.random() * 0.3})`;
+        ctx.beginPath(); ctx.arc(wx + (Math.random() - 0.5) * 8, wy - 12 - Math.random() * 18, 1 + Math.random() * 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)'; ctx.lineWidth = 1;
+    for (let s = 0; s < 25; s++) {
+      let sx = waveL + Math.random() * waveW;
+      let sy = cy - 5 - Math.random() * waveH * 0.5;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 12 + Math.random() * 20, sy); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Draw meteor craters
+  for (let i = activeCraters.length - 1; i >= 0; i--) {
+    let crater = activeCraters[i];
+    crater.timer--;
+    if (crater.timer <= 0) { activeCraters.splice(i, 1); continue; }
+    ctx.save();
+    let alpha = crater.timer > 60 ? 1 : crater.timer / 60;
+    ctx.globalAlpha = alpha;
+    let cCx = crater.x + crater.width / 2;
+    let cCy = crater.y + crater.height / 2;
+    ctx.fillStyle = `rgba(45, 28, 16, ${alpha * 0.85})`;
+    ctx.beginPath();
+    for (let j = 0; j < 12; j++) {
+      let ang = (j / 12) * Math.PI * 2;
+      let rX = crater.width / 2 + 6 + Math.random() * 8;
+      let rY = crater.height / 2 + 5 + Math.random() * 6;
+      let px = cCx + Math.cos(ang) * rX; let py = cCy + Math.sin(ang) * rY;
+      if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = `rgba(24, 14, 7, ${alpha * 0.95})`;
+    ctx.beginPath();
+    for (let j = 0; j < 10; j++) {
+      let ang = (j / 10) * Math.PI * 2;
+      let rX = crater.width / 2 * 0.72 + Math.random() * 8;
+      let rY = crater.height / 2 * 0.72 + Math.random() * 5;
+      let px = cCx + Math.cos(ang) * rX; let py = cCy + Math.sin(ang) * rY;
+      if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = `rgba(55, 38, 24, ${alpha * 0.8})`; ctx.lineWidth = 2;
+    for (let j = 0; j < 10; j++) {
+      let ang = (j / 10) * Math.PI * 2 + Math.random() * 0.25;
+      let innerR = crater.width / 2 * 0.35;
+      let outerR = crater.width / 2 + 10 + Math.random() * 20;
+      let zigzag = 2 + Math.floor(Math.random() * 3);
+      ctx.beginPath();
+      ctx.moveTo(cCx + Math.cos(ang) * innerR, cCy + Math.sin(ang) * innerR);
+      for (let z = 1; z <= zigzag; z++) {
+        let progress = z / zigzag;
+        let r = innerR + (outerR - innerR) * progress;
+        let offset = (Math.random() - 0.5) * 10;
+        ctx.lineTo(cCx + Math.cos(ang) * r + offset, cCy + Math.sin(ang) * r + offset);
+      }
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = `rgba(255, 90, 15, ${alpha * 0.7})`;
+    ctx.fillStyle = `rgba(255, 90, 15, ${alpha * 0.75})`;
+    ctx.beginPath(); ctx.ellipse(cCx, cCy + 2, crater.width / 5, crater.height / 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = `rgba(255, 180, 60, ${alpha * 0.6})`;
+    ctx.fillStyle = `rgba(255, 170, 50, ${alpha * 0.55})`;
+    ctx.beginPath(); ctx.ellipse(cCx, cCy + 1, crater.width / 9, crater.height / 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(48, 30, 18, ${alpha * 0.9})`;
+    for (let j = 0; j < 6; j++) {
+      let ang = Math.random() * Math.PI * 2;
+      let r = crater.width / 2 + 5 + Math.random() * 18;
+      let dx = Math.cos(ang) * r;
+      let dy = Math.sin(ang) * (crater.height / 2 + 3 + Math.random() * 7);
+      let size = 3 + Math.random() * 6;
+      ctx.beginPath();
+      ctx.moveTo(cCx + dx, cCy + dy);
+      ctx.lineTo(cCx + dx + size, cCy + dy - size * 0.6);
+      ctx.lineTo(cCx + dx + size * 0.9, cCy + dy + size * 0.9);
+      ctx.closePath(); ctx.fill();
+    }
+    for (let j = 0; j < 4; j++) {
+      let sx = cCx + (Math.random() - 0.5) * crater.width * 0.5;
+      let sy = cCy - 8 - Math.random() * 18;
+      ctx.fillStyle = `rgba(110, 110, 110, ${alpha * (0.15 + Math.random() * 0.25)})`;
+      ctx.beginPath(); ctx.arc(sx, sy - Math.random() * 12, 3 + Math.random() * 7, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Draw super-fire flame pillars
+  for (let i = activeFlamePillars.length - 1; i >= 0; i--) {
+    let pillar = activeFlamePillars[i];
+    pillar.timer--;
+    if (pillar.timer <= 0) { activeFlamePillars.splice(i, 1); continue; }
+    ctx.save();
+    let time = Date.now() / 100;
+    let h = 200 + Math.sin(time) * 30;
+    let alpha = pillar.timer > 60 ? 1 : pillar.timer / 60;
+    ctx.globalAlpha = alpha;
+    let grad = ctx.createLinearGradient(pillar.x + pillar.width / 2, pillar.y, pillar.x + pillar.width / 2, pillar.y - h);
+    grad.addColorStop(0, 'rgba(255, 69, 0, 0.9)');
+    grad.addColorStop(0.3, 'rgba(255, 140, 0, 0.7)');
+    grad.addColorStop(0.6, 'rgba(255, 200, 50, 0.5)');
+    grad.addColorStop(1, 'rgba(255, 255, 100, 0.1)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(pillar.x, pillar.y);
+    for (let j = 0; j <= 10; j++) {
+      let px = pillar.x + (pillar.width / 10) * j;
+      let wave = Math.sin(time * 2 + j) * 8;
+      ctx.lineTo(px + wave, pillar.y - h + Math.abs(wave) * 0.5);
+    }
+    ctx.lineTo(pillar.x + pillar.width, pillar.y);
+    ctx.closePath(); ctx.fill();
+    for (let j = 0; j < 8; j++) {
+      let fx = pillar.x + Math.random() * pillar.width;
+      let fy = pillar.y - Math.random() * h;
+      ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, ${alpha * 0.8})`;
+      ctx.beginPath(); ctx.arc(fx, fy, 3 + Math.random() * 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Draw the power fruit — a glowing golden peach that pulses; blinks when about to vanish
+  if (activeFruit) {
+    let ft = Date.now() / 250;
+    let bob = Math.sin(ft) * 4;
+    let fx = activeFruit.x; let fy = activeFruit.y + bob;
+    let blinking = activeFruit.timer < 180 && Math.floor(activeFruit.timer / 12) % 2 === 0;
+    if (!blinking) {
+      ctx.save();
+      ctx.shadowBlur = 25; ctx.shadowColor = '#ffd700';
+      let fGrad = ctx.createRadialGradient(fx - 3, fy - 3, 2, fx, fy, 13);
+      fGrad.addColorStop(0, '#ffe680');
+      fGrad.addColorStop(0.5, '#ffb347');
+      fGrad.addColorStop(1, '#ff6a88');
+      ctx.fillStyle = fGrad;
+      ctx.beginPath(); ctx.arc(fx, fy, 12 + Math.sin(ft * 1.7) * 1.5, 0, Math.PI * 2); ctx.fill();
+      // leaf + stem
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#7a4d2b'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(fx, fy - 11); ctx.lineTo(fx + 2, fy - 17); ctx.stroke();
+      ctx.fillStyle = '#4caf50';
+      ctx.beginPath(); ctx.ellipse(fx + 7, fy - 16, 6, 3, -0.5, 0, Math.PI * 2); ctx.fill();
+      // shine
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath(); ctx.arc(fx - 4, fy - 4, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    if (Math.random() < 0.2) {
+      particles.push({ x: fx + (Math.random() - 0.5) * 24, y: fy + (Math.random() - 0.5) * 24, vx: (Math.random() - 0.5) * 1.2, vy: -Math.random() * 1.5, radius: Math.random() * 2 + 1, color: '#ffd700', alpha: 0.8, decay: 0.025 });
+    }
+  }
+
   petalLauncher.update(); petalLauncher.draw();
 
   if (activeDecoy) {
@@ -2075,6 +2719,89 @@ function processFrame() {
     processContactTagging();
   }
   activePlayersList.forEach(p => p.draw());
+
+  // Draw tornadoes (super wind) — chaotic inverted funnel around the tagger
+  activeTornadoes.forEach(t => {
+    let tagger = activePlayersList.find(p => p.id === t.taggerId);
+    if (!tagger) return;
+    let cx = tagger.x + tagger.width / 2;
+    let cy = tagger.y + tagger.height / 2;
+    let time = Date.now() / 1000;
+    ctx.save();
+    let layers = 28;
+    let maxH = 266;
+    let maxR = 81;
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = 'rgba(255, 140, 80, 0.25)';
+    for (let i = 0; i < layers; i++) {
+      let tt = i / (layers - 1);
+      let y = cy - maxH + tt * maxH;
+      let baseR = maxR * (1 - tt * 0.85);
+      let wobble = Math.sin(time * 3.5 + i * 0.8) * 8 + Math.cos(time * 2.1 + i * 1.3) * 4 + Math.sin(time * 5.3 + i * 0.4) * 2.5;
+      let x = cx + wobble;
+      let swirl = time * 4 + i * 0.7 + Math.sin(time * 1.7 + i) * 0.3;
+      let alpha = 0.32 * (1 - tt * 0.55);
+      let g = 170 + tt * 50; let b = 100 + tt * 80;
+      ctx.fillStyle = `rgba(255, ${g}, ${b}, ${alpha})`;
+      ctx.beginPath(); ctx.ellipse(x, y, baseR, 7 + (1 - tt) * 6, swirl, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    for (let i = 0; i < layers; i++) {
+      let tt = i / (layers - 1);
+      let y = cy - maxH + tt * maxH;
+      let baseR = maxR * 0.55 * (1 - tt * 0.85);
+      let wobble = Math.sin(time * 3.5 + i * 0.8 + 1.5) * 5 + Math.cos(time * 2.1 + i * 1.3 + 1) * 2.5;
+      let x = cx + wobble;
+      let swirl = time * 4 + i * 0.7 + 2 + Math.sin(time * 1.7 + i) * 0.3;
+      let alpha = 0.18 * (1 - tt * 0.4);
+      ctx.fillStyle = `rgba(255, 240, 200, ${alpha})`;
+      ctx.beginPath(); ctx.ellipse(x, y, baseR, 4 + (1 - tt) * 4, swirl, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255, 200, 140, 0.28)';
+    ctx.lineWidth = 2.5;
+    for (let s = 0; s < 5; s++) {
+      ctx.beginPath();
+      let pts = 70;
+      for (let j = 0; j <= pts; j++) {
+        let p = j / pts;
+        let y = cy - maxH + p * maxH;
+        let r = (maxR - 4) * (1 - p * 0.82) + Math.sin(p * 12 + time * 5 + s) * 4;
+        let sway = Math.sin(time * 2.5 + p * 4 + s * 1.2) * 6 + Math.cos(time * 3.8 + p * 6 + s * 0.7) * 3;
+        let ang = p * 3 * Math.PI * 2 + time * 3 + s * (Math.PI * 2 / 5);
+        let px = cx + Math.cos(ang) * r + sway;
+        let py = y + Math.sin(ang * 0.3) * 3 + Math.cos(time * 4 + p * 8) * 2;
+        if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    let topSway = Math.sin(time * 2.3) * 6 + Math.cos(time * 1.7) * 3;
+    ctx.fillStyle = 'rgba(255, 150, 90, 0.14)';
+    ctx.beginPath(); ctx.ellipse(cx + topSway, cy - maxH, 87, 20, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255, 180, 120, 0.10)';
+    ctx.beginPath(); ctx.ellipse(cx + Math.sin(time * 2) * 8 + topSway * 0.6, cy - maxH, 67, 14, 0, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 34; i++) {
+      let p = (i / 34 + time * 0.7) % 1;
+      let y = cy - maxH + p * maxH * 0.95;
+      let r = (maxR - 6) * (1 - p * 0.78) + Math.sin(time * 5 + i * 2.7) * 6 + Math.cos(time * 3.2 + i * 1.9) * 3;
+      let ang = time * 3.5 + i * 1.3 + p * 5 + Math.sin(time * 2 + i) * 0.4;
+      let sway = Math.sin(time * 2.8 + i * 0.9) * 4 + Math.cos(time * 3.3 + i * 1.1) * 2;
+      let px = cx + Math.cos(ang) * r + sway;
+      let py = y + Math.sin(ang * 0.5) * 3 + Math.cos(time * 4 + i * 0.7) * 2;
+      let a = 0.4 + Math.sin(time * 3 + i) * 0.25;
+      let dc = i % 3 === 0 ? '255, 220, 160' : (i % 3 === 1 ? '255, 180, 100' : '255, 140, 70');
+      ctx.fillStyle = `rgba(${dc}, ${a})`;
+      ctx.beginPath(); ctx.arc(px, py, 1.8 + Math.random() * 2.8, 0, Math.PI * 2); ctx.fill();
+    }
+    let bottomSway = Math.sin(time * 3) * 3 + Math.cos(time * 2.2) * 2;
+    ctx.fillStyle = 'rgba(255, 230, 180, 0.18)';
+    ctx.beginPath(); ctx.ellipse(cx + bottomSway, cy, 20, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.beginPath(); ctx.ellipse(cx + Math.sin(time * 3.5) * 2 + bottomSway * 0.5, cy, 11, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 160, 80, 0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(cx + bottomSway, cy, 42 + Math.sin(time * 4) * 6, 11 + Math.sin(time * 4) * 2, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  });
 
   for (let i = particles.length - 1; i >= 0; i--) {
     let p = particles[i];
@@ -2136,10 +2863,17 @@ function processFrame() {
         else if (!taggerGrounded) decoyStr = `BLOCKED - TAGGER AIRBORNE (${chargesLeft}/5)`;
         else decoyStr = `READY (${chargesLeft}/5)`;
         let elementStatus = "";
-        if (p.burnTimer > 0) elementStatus = "🔥BURNING ";
+        if (p.meteorCraterTimer > 0) elementStatus = "☄️CRATER ";
+        else if (p.dizzyTimer > 0) elementStatus = "💫DIZZY ";
+        else if (p.waterDragTimer > 0) elementStatus = "🌊WAVE ";
+        else if (p.waterSlowTimer > 0) elementStatus = "💧SOAKED ";
+        else if (p.controlInvertTimer > 0) elementStatus = "🔄INVERTED ";
+        else if (p.burnTimer > 0) elementStatus = "🔥BURNING ";
         else if (p.frozenTimer > 0) elementStatus = "❄️FROZEN ";
+        else if (p.tornadoTimer > 0) elementStatus = "🌪️TORNADO ";
         else if (p.blownTimer > 0) elementStatus = "💨TUMBLING ";
         else if (p.slowTimer > 0) elementStatus = "🐢SLOWED ";
+        if (p.poweredUp) elementStatus = "⚡" + elementStatus;
         statusStringSpan.innerText = `${elementStatus}WALL: ${wallStr} | DECOY: ${decoyStr}`;
       }
     });
